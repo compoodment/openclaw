@@ -4,15 +4,6 @@ import fs from "node:fs/promises";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
-import {
-  clampThinkingLevel,
-  type Api,
-  getModels,
-  getProviders,
-  type KnownProvider,
-  type Model,
-  type ModelThinkingLevel,
-} from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentDir } from "../agents/agent-scope.js";
 import {
@@ -41,7 +32,22 @@ import {
 import { getApiKeyForModel, resolveEnvApiKey } from "../agents/model-auth.js";
 import { normalizeProviderId } from "../agents/model-selection.js";
 import { shouldSuppressBuiltInModel } from "../agents/model-suppression.js";
-import { ensureOpenClawModelsJson } from "../agents/models-config.js";
+import {
+  readStoredModelsConfigRaw,
+  writeStoredModelsConfigRaw,
+} from "../agents/models-config-store.js";
+import { ensureOpenClawModelCatalog } from "../agents/models-config.js";
+import {
+  clampThinkingLevel,
+  type Api,
+  type Model,
+  type ModelThinkingLevel,
+} from "../agents/pi-ai-contract.js";
+import { isRateLimitErrorMessage } from "../agents/pi-embedded-helpers/errors.js";
+import {
+  isAuthErrorMessage,
+  isBillingErrorMessage,
+} from "../agents/pi-embedded-helpers/failover-matches.js";
 import { discoverAuthStorage, discoverModels } from "../agents/pi-model-discovery.js";
 import { STREAM_ERROR_FALLBACK_TEXT } from "../agents/stream-message-shared.js";
 import { clearRuntimeConfigSnapshot, getRuntimeConfig } from "../config/io.js";
@@ -49,7 +55,7 @@ import type { ModelsConfig, ModelProviderConfig, OpenClawConfig } from "../confi
 import { isTruthyEnvValue } from "../infra/env.js";
 import { normalizeGoogleModelId } from "../plugin-sdk/google-model-id.js";
 import { resolveProviderThinkingProfile } from "../plugins/provider-runtime.js";
-import { DEFAULT_AGENT_ID } from "../routing/session-key.js";
+import { DEFAULT_AGENT_ID, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import { stripAssistantInternalScaffolding } from "../shared/text/assistant-visible-text.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { GatewayClient } from "./client.js";
@@ -1388,14 +1394,20 @@ function extractTranscriptMessageText(message: unknown): string {
 }
 
 async function readSessionAssistantTexts(sessionKey: string, modelKey?: string): Promise<string[]> {
-  const { storePath, entry } = loadSessionEntry(sessionKey);
+  const { entry } = loadSessionEntry(sessionKey);
   if (!entry?.sessionId) {
     return [];
   }
-  const messages = await readSessionMessagesAsync(entry.sessionId, storePath, entry.sessionFile, {
-    mode: "full",
-    reason: "live model assistant text verification",
-  });
+  const messages = await readSessionMessagesAsync(
+    {
+      agentId: resolveAgentIdFromSessionKey(sessionKey),
+      sessionId: entry.sessionId,
+    },
+    {
+      mode: "full",
+      reason: "live model assistant text verification",
+    },
+  );
   const assistantTexts: string[] = [];
   for (const message of messages) {
     if (!message || typeof message !== "object") {
@@ -1499,11 +1511,6 @@ type LiveModelRegistry = {
   getAll(): Array<Model<Api>>;
 };
 
-function resolveKnownProvider(provider: string): KnownProvider | undefined {
-  const normalized = provider.trim();
-  return getProviders().find((knownProvider) => knownProvider === normalized);
-}
-
 function toGatewayLiveModel(params: {
   provider: string;
   providerConfig: ModelProviderConfig;
@@ -1542,10 +1549,13 @@ async function loadProviderScopedConfiguredModels(params: {
   agentDir: string;
   providerList: readonly string[];
 }): Promise<Array<Model<Api>>> {
-  const modelsPath = path.join(params.agentDir, "models.json");
   let parsed: { providers?: Record<string, ModelProviderConfig> };
   try {
-    parsed = JSON.parse(await fs.readFile(modelsPath, "utf8")) as {
+    const stored = readStoredModelsConfigRaw(params.agentDir);
+    if (!stored) {
+      return [];
+    }
+    parsed = JSON.parse(stored.raw) as {
       providers?: Record<string, ModelProviderConfig>;
     };
   } catch {
@@ -1580,19 +1590,24 @@ async function loadProviderScopedConfiguredModels(params: {
   return models;
 }
 
-function loadProviderScopedBuiltInModels(providerList: readonly string[]): Array<Model<Api>> {
+function loadProviderScopedBuiltInModels(params: {
+  agentDir: string;
+  providerList: readonly string[];
+}): Array<Model<Api>> {
+  const registryModels = discoverModels(discoverAuthStorage(params.agentDir), params.agentDir, {
+    normalizeModels: false,
+  }).getAll();
   const models: Array<Model<Api>> = [];
   const seen = new Set<string>();
-  for (const rawProvider of providerList) {
+  for (const rawProvider of params.providerList) {
     const provider = normalizeProviderId(rawProvider);
     if (!provider) {
       continue;
     }
-    const knownProvider = resolveKnownProvider(provider);
-    if (!knownProvider) {
-      continue;
-    }
-    for (const model of getModels(knownProvider)) {
+    for (const model of registryModels) {
+      if (normalizeProviderId(model.provider) !== provider) {
+        continue;
+      }
       const key = `${normalizeProviderId(model.provider)}/${model.id.toLowerCase()}`;
       if (seen.has(key)) {
         continue;
@@ -1612,7 +1627,7 @@ async function loadProviderScopedModels(params: {
   if (configured.length > 0) {
     return configured;
   }
-  return loadProviderScopedBuiltInModels(params.providerList);
+  return loadProviderScopedBuiltInModels(params);
 }
 
 function createStaticLiveModelRegistry(models: Array<Model<Api>>): LiveModelRegistry {
@@ -1930,9 +1945,11 @@ async function runGatewayModelSuite(params: GatewayModelSuiteParams) {
 
   const liveProviders = nextCfg.models?.providers;
   if (liveProviders && Object.keys(liveProviders).length > 0) {
-    const modelsPath = path.join(tempAgentDir, "models.json");
     await fs.mkdir(tempAgentDir, { recursive: true });
-    await fs.writeFile(modelsPath, `${JSON.stringify({ providers: liveProviders }, null, 2)}\n`);
+    writeStoredModelsConfigRaw(
+      tempAgentDir,
+      `${JSON.stringify({ providers: liveProviders }, null, 2)}\n`,
+    );
   }
 
   // Keep the broad live Docker suite on the impl entrypoint. The lazy public
@@ -2628,14 +2645,14 @@ describeLive("gateway live (dev agent, profile keys)", () => {
           "[all-models] load config",
         );
         const workspaceDir = resolveAgentWorkspaceDir(cfg, DEFAULT_AGENT_ID);
-        logProgress("[all-models] preparing models.json");
+        logProgress("[all-models] preparing model catalog");
         await withGatewayLiveSetupTimeout(
-          ensureOpenClawModelsJson(cfg, undefined, {
+          ensureOpenClawModelCatalog(cfg, undefined, {
             workspaceDir,
             ...(providerList ? { providerDiscoveryProviderIds: providerList } : {}),
             providerDiscoveryEntriesOnly: true,
           }),
-          "[all-models] prepare models.json",
+          "[all-models] prepare model catalog",
         );
 
         const agentDir = resolveDefaultAgentDir(cfg);
@@ -2854,7 +2871,7 @@ describeLive("gateway live (dev agent, profile keys)", () => {
     process.env.OPENCLAW_GATEWAY_TOKEN = token;
 
     const cfg = getRuntimeConfig();
-    await ensureOpenClawModelsJson(cfg);
+    await ensureOpenClawModelCatalog(cfg);
 
     const agentDir = resolveDefaultAgentDir(cfg);
     const authStorage = discoverAuthStorage(agentDir);

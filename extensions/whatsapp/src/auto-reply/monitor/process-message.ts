@@ -224,7 +224,7 @@ export async function processMessage(params: {
     channel: "whatsapp",
     accountId: account.accountId,
   });
-  const { storePath, envelopeOptions, previousTimestamp } = resolveInboundSessionEnvelopeContext({
+  const { envelopeOptions, previousTimestamp } = resolveInboundSessionEnvelopeContext({
     cfg: params.cfg,
     agentId: params.route.agentId,
     sessionKey: params.route.sessionKey,
@@ -507,8 +507,8 @@ export async function processMessage(params: {
       resolveTurn: () => ({
         channel: "whatsapp",
         accountId: params.route.accountId,
+        agentId: params.route.agentId,
         routeSessionKey: params.route.sessionKey,
-        storePath,
         ctxPayload,
         recordInboundSession,
         record: {
@@ -516,7 +516,7 @@ export async function processMessage(params: {
             params.replyLogger.warn(
               {
                 error: formatError(err),
-                storePath,
+                agentId: params.route.agentId,
                 sessionKey: params.route.sessionKey,
               },
               "failed updating session meta",
