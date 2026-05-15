@@ -605,7 +605,6 @@ describe("channel turn kernel", () => {
     const first = await runPreparedChannelTurn({
       channel: "test",
       routeSessionKey: "agent:main:test:peer",
-      storePath: "/tmp/sessions.json",
       ctxPayload: createCtx(),
       recordInboundSession,
       runDispatch,
@@ -614,7 +613,6 @@ describe("channel turn kernel", () => {
     const second = await runPreparedChannelTurn({
       channel: "test",
       routeSessionKey: "agent:main:test:peer",
-      storePath: "/tmp/sessions.json",
       ctxPayload: createCtx(),
       recordInboundSession,
       runDispatch,
@@ -825,7 +823,6 @@ describe("channel turn kernel", () => {
             channel: "test",
             accountId: "acct",
             routeSessionKey: "agent:main:test:peer",
-            storePath: "/tmp/sessions.json",
             ctxPayload: createCtx(),
             recordInboundSession: createRecordInboundSession(events),
             botLoopProtection: {
