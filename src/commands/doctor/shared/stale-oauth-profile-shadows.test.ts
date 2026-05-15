@@ -1,3 +1,4 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +11,7 @@ import {
 } from "../../../agents/auth-profiles/store.js";
 import type { AuthProfileStore, OAuthCredential } from "../../../agents/auth-profiles/types.js";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
+import { closeOpenClawStateDatabaseForTest } from "../../../state/openclaw-state-db.js";
 import { captureEnv } from "../../../test-utils/env.js";
 import {
   collectStaleOAuthProfileShadowWarnings,
@@ -35,10 +37,16 @@ function storeWith(profileId: string, credential: OAuthCredential): AuthProfileS
   };
 }
 
-async function writeRawAuthStore(agentDir: string, store: AuthProfileStore): Promise<void> {
-  const authPath = resolveAuthStorePath(agentDir);
-  await fs.mkdir(path.dirname(authPath), { recursive: true });
-  await fs.writeFile(authPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+function writeAuthStore(
+  agentDir: string,
+  store: AuthProfileStore,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  fsSync.mkdirSync(path.dirname(resolveAuthStorePath(agentDir)), { recursive: true });
+  saveAuthProfileStore(store, agentDir, {
+    env,
+    forceLocalProfileIds: Object.keys(store.profiles),
+  });
 }
 
 describe("stale OAuth profile shadow doctor repair", () => {
@@ -47,6 +55,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
   let stateDir = "";
 
   beforeEach(async () => {
+    closeOpenClawStateDatabaseForTest();
     clearRuntimeAuthProfileStoreSnapshots();
     tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-stale-oauth-shadow-"));
     stateDir = path.join(tempRoot, "state");
@@ -55,6 +64,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
   });
 
   afterEach(async () => {
+    closeOpenClawStateDatabaseForTest();
     clearRuntimeAuthProfileStoreSnapshots();
     envSnapshot.restore();
     await fs.rm(tempRoot, { recursive: true, force: true });
@@ -64,7 +74,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
     const profileId = "anthropic:default";
     const now = Date.now();
     const childAgentDir = path.join(stateDir, "agents", "telegram", "agent");
-    await writeRawAuthStore(
+    writeAuthStore(
       childAgentDir,
       storeWith(
         profileId,
@@ -122,7 +132,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
       ),
       undefined,
     );
-    await writeRawAuthStore(
+    writeAuthStore(
       path.join(injectedStateDir, "agents", "main", "agent"),
       storeWith(
         profileId,
@@ -133,9 +143,10 @@ describe("stale OAuth profile shadow doctor repair", () => {
           accountId: "acct-injected-env",
         }),
       ),
+      injectedEnv,
     );
     const childAgentDir = path.join(injectedStateDir, "agents", "telegram", "agent");
-    await writeRawAuthStore(
+    writeAuthStore(
       childAgentDir,
       storeWith(
         profileId,
@@ -146,6 +157,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
           accountId: "acct-injected-env",
         }),
       ),
+      injectedEnv,
     );
 
     const hits = await scanStaleOAuthProfileShadows({
@@ -178,7 +190,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
       ),
       undefined,
     );
-    await writeRawAuthStore(childAgentDir, {
+    writeAuthStore(childAgentDir, {
       ...storeWith(
         profileId,
         oauthCredential({
@@ -219,7 +231,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
     const profileId = "anthropic:default";
     const now = Date.now();
     const childAgentDir = path.join(stateDir, "agents", "telegram", "agent");
-    await writeRawAuthStore(
+    writeAuthStore(
       childAgentDir,
       storeWith(
         profileId,
@@ -252,7 +264,7 @@ describe("stale OAuth profile shadow doctor repair", () => {
     const profileId = "anthropic:default";
     const now = Date.now();
     const childAgentDir = path.join(stateDir, "agents", "telegram", "agent");
-    await writeRawAuthStore(
+    writeAuthStore(
       childAgentDir,
       storeWith(
         profileId,

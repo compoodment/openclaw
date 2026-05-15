@@ -24,15 +24,6 @@ type StaleOAuthProfileShadow = {
   profileId: string;
 };
 
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.lstat(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function collectStateAgentDirs(env: NodeJS.ProcessEnv): Promise<string[]> {
   const agentsRoot = path.join(resolveStateDir(env), "agents");
   const entries = await fs.readdir(agentsRoot, { withFileTypes: true }).catch(() => []);
@@ -93,17 +84,17 @@ export async function scanStaleOAuthProfileShadows(params: {
   const now = params.now ?? Date.now();
   const mainAgentDir = resolveDefaultAgentDir({}, env);
   const mainAuthPath = path.resolve(resolveAuthStorePath(mainAgentDir));
-  const mainStore = loadPersistedAuthProfileStore(mainAgentDir);
+  const mainStore = loadPersistedAuthProfileStore(mainAgentDir, { env });
   if (!mainStore) {
     return [];
   }
   const hits: StaleOAuthProfileShadow[] = [];
   for (const agentDir of await collectCandidateAgentDirs(params.cfg, env)) {
     const authPath = path.resolve(resolveAuthStorePath(agentDir));
-    if (authPath === mainAuthPath || !(await pathExists(authPath))) {
+    if (authPath === mainAuthPath) {
       continue;
     }
-    const localStore = loadPersistedAuthProfileStore(agentDir);
+    const localStore = loadPersistedAuthProfileStore(agentDir, { env });
     if (!localStore) {
       continue;
     }
@@ -166,6 +157,7 @@ export async function repairStaleOAuthProfileShadows(params: {
   env?: NodeJS.ProcessEnv;
   now?: number;
 }): Promise<{ changes: string[]; warnings: string[] }> {
+  const env = params.env ?? process.env;
   const hits = await scanStaleOAuthProfileShadows(params);
   const changes: string[] = [];
   const warnings: string[] = [];
@@ -176,13 +168,13 @@ export async function repairStaleOAuthProfileShadows(params: {
     byAgentDir.set(hit.agentDir, existing);
   }
   for (const [agentDir, agentHits] of byAgentDir) {
-    const store = loadPersistedAuthProfileStore(agentDir);
+    const store = loadPersistedAuthProfileStore(agentDir, { env });
     if (!store) {
       continue;
     }
     const profileIds = new Set(agentHits.map((hit) => hit.profileId));
     try {
-      saveAuthProfileStore(removeProfilesFromStore(store, profileIds), agentDir);
+      saveAuthProfileStore(removeProfilesFromStore(store, profileIds), agentDir, { env });
       changes.push(
         `Removed stale OAuth auth profile shadow ${formatProfileList(
           [...profileIds].toSorted(),
