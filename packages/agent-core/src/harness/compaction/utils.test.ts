@@ -1,4 +1,8 @@
 import type { Message } from "@openclaw/llm-core";
+import {
+  CHARS_PER_TOKEN_ESTIMATE,
+  estimateStringChars,
+} from "@openclaw/normalization-core/cjk-chars";
 import { describe, expect, it } from "vitest";
 import type { AgentMessage } from "../../types.js";
 import { estimateTokens } from "./compaction.js";
@@ -7,6 +11,7 @@ import {
   createFileOps,
   extractFileOpsFromMessage,
   formatFileOperations,
+  formatPersistedSenderSuffix,
   MAX_FILE_OPS_SECTION_CHARS,
   mergeSummaryFileOperations,
   serializeConversation,
@@ -232,7 +237,13 @@ describe("serializeConversation", () => {
       },
     } as unknown as AgentMessage;
 
-    expect(estimateTokens(attributed)).toBeGreaterThan(estimateTokens(unattributed));
+    expect(estimateTokens(attributed)).toBe(
+      Math.ceil(
+        (estimateStringChars(content) +
+          estimateStringChars(formatPersistedSenderSuffix(attributed))) /
+          CHARS_PER_TOKEN_ESTIMATE,
+      ),
+    );
   });
 
   it("keeps sender labels structurally contained in summary input", () => {
