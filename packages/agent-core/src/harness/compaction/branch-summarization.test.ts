@@ -257,6 +257,53 @@ src/write.ts
     expect(capture.readCapture().prompt).toContain("is unattributed");
   });
 
+  it("applies attribution instructions when custom branch instructions replace the default", async () => {
+    const model = createModel(128_000);
+    const capture = createCapturingStream(model);
+    const result = await generateBranchSummary(
+      [
+        createMessageEntry(
+          {
+            role: "user",
+            content: "Alice owns this branch decision.",
+            timestamp: 1,
+            __openclaw: { senderId: "alice-id" },
+          } as AgentMessage,
+          0,
+        ),
+      ],
+      {
+        model,
+        apiKey: "test-key",
+        signal: new AbortController().signal,
+        customInstructions: "Use this caller-owned branch format.",
+        replaceInstructions: true,
+        streamFn: capture.streamFn,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capture.readCapture().prompt).toContain("Use this caller-owned branch format.");
+    expect(capture.readCapture().prompt).toContain("Preserve attribution for material facts");
+    expect(capture.readCapture().prompt).toContain("is unattributed");
+  });
+
+  it("charges sender-heavy entries before selecting a branch history budget", () => {
+    const attributed = {
+      role: "user",
+      content: "old",
+      timestamp: 1,
+      __openclaw: { senderName: "A".repeat(256) },
+    } as AgentMessage;
+    const recent = { role: "user", content: "new", timestamp: 2 } as AgentMessage;
+    const entries = [createMessageEntry(attributed, 0), createMessageEntry(recent, 1)];
+
+    const preparation = prepareBranchEntries(entries, 2);
+
+    expect(preparation.messages).toMatchObject([{ role: "user", content: "new" }]);
+    expect(preparation.totalTokens).toBeLessThanOrEqual(2);
+  });
+
   it("retains failed tool results when preparing a branch", () => {
     const entries: SessionTreeEntry[] = [
       createMessageEntry({ role: "user", content: "run deployment", timestamp: 1 }, 0),

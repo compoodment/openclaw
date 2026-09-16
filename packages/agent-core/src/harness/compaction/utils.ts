@@ -274,12 +274,21 @@ function readPersistedSender(message: Message): PersistedSender | undefined {
   return Object.values(sender).some((value) => value !== undefined) ? sender : undefined;
 }
 
+/**
+ * Return exactly the persisted-sender text which is projected into a user
+ * conversation label. Keep this shared with token accounting: adding a label
+ * to the prompt without charging it can make bounded compaction overflow.
+ */
+export function formatPersistedSenderSuffix(message: Message): string {
+  const sender = readPersistedSender(message);
+  return sender ? ` sender=${JSON.stringify(sender)}` : "";
+}
+
 function formatConversationSpeaker(message: Message): string {
   if (message.role !== "user") {
     return message.role === "toolResult" ? "Tool result" : "User";
   }
-  const sender = readPersistedSender(message);
-  return sender ? `User sender=${JSON.stringify(sender)}` : "User";
+  return `User${formatPersistedSenderSuffix(message)}`;
 }
 
 /** Serialize LLM messages to plain text for summarization prompts. */

@@ -36,6 +36,7 @@ import {
   extractSummaryText,
   type FileOperations,
   formatFileOperations,
+  formatPersistedSenderSuffix,
   getCompactionContent,
   mergeSummaryFileOperations,
   serializeConversation,
@@ -387,7 +388,12 @@ export function estimateTokens(message: AgentMessage): number {
       }
       return Math.ceil(chars / CHARS_PER_TOKEN_ESTIMATE);
     }
-    case "user":
+    case "user": {
+      chars = countContentChars(harnessMessage.content);
+      // serializeConversation projects this exact persisted-sender suffix.
+      chars += estimateStringChars(formatPersistedSenderSuffix(harnessMessage));
+      return Math.ceil(chars / CHARS_PER_TOKEN_ESTIMATE);
+    }
     case "custom":
     case "toolResult": {
       chars = countContentChars(harnessMessage.content);
@@ -595,6 +601,11 @@ Do NOT continue the conversation. Do NOT respond to any questions in the convers
 export const SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS =
   "When a conversation line includes sender={...}, that JSON identifies the author of that user turn. Preserve attribution for material facts, preferences, instructions, decisions, and disagreements; never transfer them to another sender or an anonymous user. A user line without sender={...} is unattributed: preserve its facts as unattributed and do not assign them to a known sender.";
 
+/** Apply provenance policy to every compaction request, including custom prompts. */
+export function withSenderProvenanceSummarizationInstructions(prompt: string): string {
+  return `${prompt}\n\n${SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS}`;
+}
+
 const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work.
 
 Use this EXACT format:
@@ -626,8 +637,7 @@ Use this EXACT format:
 - [Any data, examples, or references needed to continue]
 - [Or "(none)" if not applicable]
 
-Keep each section concise. Preserve exact file paths, function names, and error messages.
-${SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS}`;
+Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 
 const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to incorporate into the existing summary provided in <previous-summary> tags.
 
@@ -666,8 +676,7 @@ Use this EXACT format:
 ## Critical Context
 - [Preserve important context, add new if needed]
 
-Keep each section concise. Preserve exact file paths, function names, and error messages.
-${SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS}`;
+Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 
 function createSummarizationOptions(
   model: Model,
@@ -787,7 +796,7 @@ export async function generateSummary(
     summaryPrompt?.kind === "turn-prefix"
       ? TURN_PREFIX_SUMMARIZATION_PROMPT
       : summaryPrompt?.instructions;
-  const prompt = summaryPrompt
+  const promptWithoutProvenance = summaryPrompt
     ? [
         previousSummary &&
           "Update the previous summary with the new conversation. Preserve relevant facts, decisions, and unresolved asks; remove stale or duplicate detail. Use the format below.",
@@ -800,7 +809,7 @@ export async function generateSummary(
       : SUMMARIZATION_PROMPT;
   return await runSummarizationCompletion({
     messages: currentMessages,
-    prompt,
+    prompt: withSenderProvenanceSummarizationInstructions(promptWithoutProvenance),
     customInstructions,
     previousSummary,
     model,

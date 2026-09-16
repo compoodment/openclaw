@@ -221,6 +221,20 @@ describe("serializeConversation", () => {
     );
   });
 
+  it("charges the persisted sender suffix that compaction serializes", () => {
+    const content = "short message";
+    const unattributed = { role: "user", content, timestamp: 1 } as AgentMessage;
+    const attributed = {
+      ...unattributed,
+      __openclaw: {
+        senderId: "alice-id",
+        senderName: "A".repeat(256),
+      },
+    } as AgentMessage;
+
+    expect(estimateTokens(attributed)).toBeGreaterThan(estimateTokens(unattributed));
+  });
+
   it("keeps sender labels structurally contained in summary input", () => {
     const serialized = serializeConversation([
       {
