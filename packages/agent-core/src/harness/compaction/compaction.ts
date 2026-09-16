@@ -30,6 +30,10 @@ import {
   type SessionTreeEntry,
 } from "../types.js";
 import {
+  SUMMARIZATION_SYSTEM_PROMPT,
+  withSenderProvenanceSummarizationInstructions,
+} from "./summarization-prompts.js";
+import {
   computeFileLists,
   createFileOps,
   extractFileOpsFromMessage,
@@ -594,18 +598,6 @@ export function findCutPoint(
   };
 }
 
-export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assistant. Your task is to read a conversation between a user and an AI assistant, then produce a structured summary following the exact format specified.
-
-Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
-
-const SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS =
-  "When a conversation line includes sender={...}, that JSON identifies the author of that user turn. Preserve attribution for material facts, preferences, instructions, decisions, and disagreements; never transfer them to another sender or an anonymous user. A user line without sender={...} is unattributed: preserve its facts as unattributed and do not assign them to a known sender.";
-
-/** Apply provenance policy to every compaction request, including custom prompts. */
-export function withSenderProvenanceSummarizationInstructions(prompt: string): string {
-  return `${prompt}\n\n${SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS}`;
-}
-
 const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work.
 
 Use this EXACT format:
@@ -722,6 +714,7 @@ async function runSummarizationCompletion(params: {
   if (params.customInstructions) {
     promptText += `\n\nAdditional focus: ${params.customInstructions}`;
   }
+  promptText = withSenderProvenanceSummarizationInstructions(promptText);
   const context = {
     systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
     messages: [
@@ -809,7 +802,7 @@ export async function generateSummary(
       : SUMMARIZATION_PROMPT;
   return await runSummarizationCompletion({
     messages: currentMessages,
-    prompt: withSenderProvenanceSummarizationInstructions(promptWithoutProvenance),
+    prompt: promptWithoutProvenance,
     customInstructions,
     previousSummary,
     model,

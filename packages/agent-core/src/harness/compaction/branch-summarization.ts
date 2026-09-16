@@ -22,7 +22,7 @@ import {
 import {
   SUMMARIZATION_SYSTEM_PROMPT,
   withSenderProvenanceSummarizationInstructions,
-} from "./compaction.js";
+} from "./summarization-prompts.js";
 import {
   computeFileLists,
   createFileOps,
