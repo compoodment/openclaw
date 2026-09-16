@@ -245,6 +245,43 @@ export function getCompactionContent(
 const MAX_OMISSION_MESSAGES = 8;
 const OMISSION_OVERFLOW = "[More image/non-text data omitted from summary input]";
 
+type PersistedSender = {
+  id?: string;
+  name?: string;
+  username?: string;
+};
+
+function readPersistedSender(message: Message): PersistedSender | undefined {
+  if (message.role !== "user") {
+    return undefined;
+  }
+  const metadata = asRecord(Reflect.get(message, "__openclaw"));
+  if (!metadata) {
+    return undefined;
+  }
+  const normalize = (value: unknown): string | undefined => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const normalized = value.replaceAll("\u0000", "").trim();
+    return normalized || undefined;
+  };
+  const sender = {
+    id: normalize(metadata.senderId),
+    name: normalize(metadata.senderName),
+    username: normalize(metadata.senderUsername),
+  };
+  return Object.values(sender).some((value) => value !== undefined) ? sender : undefined;
+}
+
+function formatConversationSpeaker(message: Message): string {
+  if (message.role !== "user") {
+    return message.role === "toolResult" ? "Tool result" : "User";
+  }
+  const sender = readPersistedSender(message);
+  return sender ? `User sender=${JSON.stringify(sender)}` : "User";
+}
+
 /** Serialize LLM messages to plain text for summarization prompts. */
 export function serializeConversation(messages: Message[]): string {
   const parts: string[] = [];
@@ -270,7 +307,7 @@ export function serializeConversation(messages: Message[]): string {
         .filter(Boolean)
         .join("\n");
       if (content) {
-        parts.push(`[${msg.role === "user" ? "User" : "Tool result"}]: ${content}`);
+        parts.push(`[${formatConversationSpeaker(msg)}]: ${content}`);
       }
     } else if (msg.role === "assistant") {
       const textParts: string[] = [];
