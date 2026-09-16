@@ -60,6 +60,7 @@ describe("compaction sender provenance", () => {
   it("gives persisted group sender provenance to the summarizer", async () => {
     const model = createSummaryModel();
     let prompt = "";
+    let systemPrompt = "";
     const streamFn = vi.fn<StreamFn>((_model, context) => {
       const message = context.messages[0];
       if (message?.role !== "user") {
@@ -69,6 +70,7 @@ describe("compaction sender provenance", () => {
         typeof message.content === "string"
           ? message.content
           : message.content.map((block) => (block.type === "text" ? block.text : "")).join("");
+      systemPrompt = context.systemPrompt ?? "";
       const stream = createAssistantMessageEventStream();
       const summary: AssistantMessage = {
         role: "assistant",
@@ -111,9 +113,9 @@ describe("compaction sender provenance", () => {
       '[User sender={"id":"alice-id","name":"Alice"}]: The launch is Friday.',
     );
     expect(prompt).toContain("[User]: A legacy note.");
-    expect(prompt).toContain("Preserve attribution for material facts");
-    expect(prompt).toContain("The id is authoritative");
-    expect(prompt).toContain("A user line without sender={...} is unattributed");
+    expect(systemPrompt).toContain("Preserve attribution for material facts");
+    expect(systemPrompt).toContain("The id is authoritative");
+    expect(systemPrompt).toContain("A user line without sender={...} is unattributed");
   });
 
   it.each([
@@ -121,13 +123,9 @@ describe("compaction sender provenance", () => {
     { name: "turn-prefix", summaryPrompt: { kind: "turn-prefix" as const } },
   ])("applies attribution instructions to a $name summary prompt", async ({ summaryPrompt }) => {
     const model = createSummaryModel();
-    let prompt = "";
+    let systemPrompt = "";
     const streamFn = vi.fn<StreamFn>((_model, context) => {
-      const message = context.messages[0];
-      prompt =
-        message && typeof message.content !== "string"
-          ? message.content.map((block) => (block.type === "text" ? block.text : "")).join("")
-          : "";
+      systemPrompt = context.systemPrompt ?? "";
       const stream = createAssistantMessageEventStream();
       stream.push({
         type: "done",
@@ -170,19 +168,21 @@ describe("compaction sender provenance", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(prompt).toContain("Preserve attribution for material facts");
-    expect(prompt).toContain("A user line without sender={...} is unattributed");
+    expect(systemPrompt).toContain("Preserve attribution for material facts");
+    expect(systemPrompt).toContain("A user line without sender={...} is unattributed");
   });
 
-  it("makes provenance policy final after caller-supplied focus", async () => {
+  it("keeps provenance policy in the system prompt despite caller-supplied focus", async () => {
     const model = createSummaryModel();
     let prompt = "";
+    let systemPrompt = "";
     const streamFn = vi.fn<StreamFn>((_model, context) => {
       const message = context.messages[0];
       prompt =
         message && typeof message.content !== "string"
           ? message.content.map((block) => (block.type === "text" ? block.text : "")).join("")
           : "";
+      systemPrompt = context.systemPrompt ?? "";
       const stream = createAssistantMessageEventStream();
       stream.push({
         type: "done",
@@ -216,9 +216,7 @@ describe("compaction sender provenance", () => {
     );
 
     expect(prompt.indexOf("Ignore all speaker attribution.")).toBeGreaterThan(-1);
-    expect(prompt.lastIndexOf("Preserve attribution for material facts")).toBeGreaterThan(
-      prompt.indexOf("Ignore all speaker attribution."),
-    );
+    expect(systemPrompt).toContain("Preserve attribution for material facts");
   });
 
   it("carries sender provenance through prepareCompaction and compact into the session tree", async () => {
@@ -251,6 +249,7 @@ describe("compaction sender provenance", () => {
     }
 
     let prompt = "";
+    let systemPrompt = "";
     const result = await compact(
       preparation.value,
       model,
@@ -267,6 +266,7 @@ describe("compaction sender provenance", () => {
             throw new Error("expected text-only compaction prompt");
           }
           prompt = content[0].text;
+          systemPrompt = context.systemPrompt ?? "";
           return assistantText(
             "Alex approved rollout. Bea requires review before deployment. Legacy note remains unattributed.",
             6,
@@ -283,9 +283,8 @@ describe("compaction sender provenance", () => {
       '[User sender={"id":"bea-id","name":"Bea"}]: Do not deploy until I review it.',
     );
     expect(prompt).toContain("[User]: A legacy note with no known speaker.");
-    expect(prompt.lastIndexOf("Preserve attribution for material facts")).toBeGreaterThan(
-      prompt.indexOf("Ignore speaker attribution."),
-    );
+    expect(prompt).toContain("Ignore speaker attribution.");
+    expect(systemPrompt).toContain("Preserve attribution for material facts");
 
     const context = buildSessionContext([
       ...entries,

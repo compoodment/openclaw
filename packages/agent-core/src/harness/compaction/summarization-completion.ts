@@ -13,10 +13,7 @@ import {
 import type { AgentMessage, ThinkingLevel } from "../../types.js";
 import { convertToLlm } from "../messages.js";
 import { CompactionError, err, InvalidSummaryOutputError, ok, type Result } from "../types.js";
-import {
-  SUMMARIZATION_SYSTEM_PROMPT,
-  withSenderProvenanceSummarizationInstructions,
-} from "./summarization-prompts.js";
+import { SUMMARIZATION_SYSTEM_PROMPT } from "./summarization-prompts.js";
 import { extractSummaryText, serializeConversation } from "./utils.js";
 
 function createSummarizationOptions(
@@ -67,7 +64,6 @@ export async function runSummarizationCompletion(
   if (params.customInstructions) {
     promptText += `\n\nAdditional focus: ${params.customInstructions}`;
   }
-  promptText = withSenderProvenanceSummarizationInstructions(promptText);
   const context = {
     systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
     messages: [

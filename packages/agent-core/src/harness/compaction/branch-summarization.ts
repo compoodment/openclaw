@@ -19,10 +19,7 @@ import {
   ok,
   type Result,
 } from "../types.js";
-import {
-  SUMMARIZATION_SYSTEM_PROMPT,
-  withSenderProvenanceSummarizationInstructions,
-} from "./summarization-prompts.js";
+import { SUMMARIZATION_SYSTEM_PROMPT } from "./summarization-prompts.js";
 import {
   computeFileLists,
   createFileOps,
@@ -205,7 +202,6 @@ export async function generateBranchSummary(
   } else {
     instructions = BRANCH_SUMMARY_PROMPT;
   }
-  instructions = withSenderProvenanceSummarizationInstructions(instructions);
   const promptPrefix = "<conversation>\n";
   const promptSuffix = `\n</conversation>\n\n${instructions}`;
   const fixedInputTokens = Math.ceil(

@@ -253,8 +253,8 @@ src/write.ts
       '[User sender={"id":"alice-id","name":"Alice"}]: Alice requires the launch on Friday.',
     );
     expect(capture.readCapture().prompt).toContain("[User]: An old anonymous note.");
-    expect(capture.readCapture().prompt).toContain("Preserve attribution for material facts");
-    expect(capture.readCapture().prompt).toContain("is unattributed");
+    expect(capture.readCapture().systemPrompt).toContain("Preserve attribution for material facts");
+    expect(capture.readCapture().systemPrompt).toContain("is unattributed");
   });
 
   it("applies attribution instructions when custom branch instructions replace the default", async () => {
@@ -284,8 +284,8 @@ src/write.ts
 
     expect(result.ok).toBe(true);
     expect(capture.readCapture().prompt).toContain("Use this caller-owned branch format.");
-    expect(capture.readCapture().prompt).toContain("Preserve attribution for material facts");
-    expect(capture.readCapture().prompt).toContain("is unattributed");
+    expect(capture.readCapture().systemPrompt).toContain("Preserve attribution for material facts");
+    expect(capture.readCapture().systemPrompt).toContain("is unattributed");
   });
 
   it("charges sender-heavy entries before selecting a branch history budget", () => {
