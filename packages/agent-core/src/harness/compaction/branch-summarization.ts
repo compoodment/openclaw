@@ -181,8 +181,7 @@ Use this EXACT format:
 ## Next Steps
 1. [What should happen next to continue this work]
 
-Keep each section concise. Preserve exact file paths, function names, and error messages.
-${SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS}`;
+Keep each section concise. Preserve exact file paths, function names, and error messages.`;
 
 /** Generate a summary for abandoned branch entries. */
 export async function generateBranchSummary(
