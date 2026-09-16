@@ -11,6 +11,7 @@ function createSummaryModel(): Model {
     api: "test-api",
     provider: "test-provider",
     baseUrl: "https://example.test",
+    reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 100_000,

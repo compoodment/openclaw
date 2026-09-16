@@ -598,7 +598,7 @@ export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assi
 
 Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
 
-export const SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS =
+const SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS =
   "When a conversation line includes sender={...}, that JSON identifies the author of that user turn. Preserve attribution for material facts, preferences, instructions, decisions, and disagreements; never transfer them to another sender or an anonymous user. A user line without sender={...} is unattributed: preserve its facts as unattributed and do not assign them to a known sender.";
 
 /** Apply provenance policy to every compaction request, including custom prompts. */

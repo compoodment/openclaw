@@ -230,7 +230,7 @@ describe("serializeConversation", () => {
         senderId: "alice-id",
         senderName: "A".repeat(256),
       },
-    } as AgentMessage;
+    } as unknown as AgentMessage;
 
     expect(estimateTokens(attributed)).toBeGreaterThan(estimateTokens(unattributed));
   });
