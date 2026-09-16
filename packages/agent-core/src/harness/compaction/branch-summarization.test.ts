@@ -298,10 +298,13 @@ src/write.ts
     const recent = { role: "user", content: "new", timestamp: 2 } as AgentMessage;
     const entries = [createMessageEntry(attributed, 0), createMessageEntry(recent, 1)];
 
-    const preparation = prepareBranchEntries(entries, 2);
+    // The newer shared serializer charges the visible user-role wrapper too;
+    // leave room for the newest short turn while the large sender suffix must
+    // still exclude the older attributed turn.
+    const preparation = prepareBranchEntries(entries, 4);
 
     expect(preparation.messages).toMatchObject([{ role: "user", content: "new" }]);
-    expect(preparation.totalTokens).toBeLessThanOrEqual(2);
+    expect(preparation.totalTokens).toBeLessThanOrEqual(4);
   });
 
   it("retains failed tool results when preparing a branch", () => {
