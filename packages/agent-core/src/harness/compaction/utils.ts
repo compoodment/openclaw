@@ -251,7 +251,15 @@ type PersistedSender = {
   username?: string;
 };
 
-function readPersistedSender(message: Message): PersistedSender | undefined {
+// Compaction sees both model messages and harness-only AgentMessages. Sender
+// metadata is only meaningful on user turns, so this deliberately accepts the
+// minimal shared shape rather than forcing token accounting through an unsafe
+// Message cast.
+type PersistedSenderCarrier = {
+  role: string;
+};
+
+function readPersistedSender(message: PersistedSenderCarrier): PersistedSender | undefined {
   if (message.role !== "user") {
     return undefined;
   }
@@ -279,7 +287,7 @@ function readPersistedSender(message: Message): PersistedSender | undefined {
  * conversation label. Keep this shared with token accounting: adding a label
  * to the prompt without charging it can make bounded compaction overflow.
  */
-export function formatPersistedSenderSuffix(message: Message): string {
+export function formatPersistedSenderSuffix(message: PersistedSenderCarrier): string {
   const sender = readPersistedSender(message);
   return sender ? ` sender=${JSON.stringify(sender)}` : "";
 }
