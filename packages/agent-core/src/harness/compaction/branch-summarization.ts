@@ -19,18 +19,10 @@ import {
   ok,
   type Result,
 } from "../types.js";
-<<<<<<< HEAD
 import {
   SUMMARIZATION_SYSTEM_PROMPT,
   withSenderProvenanceSummarizationInstructions,
 } from "./compaction.js";
-=======
-import {
-  estimateTokens,
-  SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS,
-  SUMMARIZATION_SYSTEM_PROMPT,
-} from "./compaction.js";
->>>>>>> b3080f22 (fix: preserve provenance instructions in branch summaries)
 import {
   computeFileLists,
   createFileOps,
