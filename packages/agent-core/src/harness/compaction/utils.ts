@@ -279,7 +279,10 @@ function readPersistedSender(message: PersistedSenderCarrier): PersistedSender |
     name: normalize(metadata.senderName),
     username: normalize(metadata.senderUsername),
   };
-  return Object.values(sender).some((value) => value !== undefined) ? sender : undefined;
+  // Display names and usernames are mutable and non-unique. They are useful
+  // labels only once a stable sender ID anchors them; on their own they must
+  // not turn a legacy/partial record into asserted author provenance.
+  return sender.id ? sender : undefined;
 }
 
 /**

@@ -293,7 +293,7 @@ src/write.ts
       role: "user",
       content: "old",
       timestamp: 1,
-      __openclaw: { senderName: "A".repeat(256) },
+      __openclaw: { senderId: "alice-id", senderName: "A".repeat(256) },
     } as AgentMessage;
     const recent = { role: "user", content: "new", timestamp: 2 } as AgentMessage;
     const entries = [createMessageEntry(attributed, 0), createMessageEntry(recent, 1)];
