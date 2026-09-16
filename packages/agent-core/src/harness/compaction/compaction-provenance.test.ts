@@ -87,6 +87,7 @@ describe("compaction sender provenance", () => {
     );
     expect(prompt).toContain("[User]: A legacy note.");
     expect(prompt).toContain("Preserve attribution for material facts");
+    expect(prompt).toContain("The id is authoritative");
     expect(prompt).toContain("A user line without sender={...} is unattributed");
   });
 

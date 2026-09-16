@@ -4,7 +4,7 @@ export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assi
 Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
 
 const SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS =
-  "When a conversation line includes sender={...}, that JSON identifies the author of that user turn. Preserve attribution for material facts, preferences, instructions, decisions, and disagreements; never transfer them to another sender or an anonymous user. A user line without sender={...} is unattributed: preserve its facts as unattributed and do not assign them to a known sender.";
+  "When a conversation line includes sender={...}, that JSON identifies the author of that user turn. The id is authoritative; name and username are readable labels only. Preserve attribution for material facts, preferences, instructions, decisions, and disagreements; never transfer them to another sender or an anonymous user. A user line without sender={...} is unattributed: preserve its facts as unattributed and do not assign them to a known sender.";
 
 /** Keep identity policy last so caller-supplied focus cannot supersede it. */
 export function withSenderProvenanceSummarizationInstructions(prompt: string): string {

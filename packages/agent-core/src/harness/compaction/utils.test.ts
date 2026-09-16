@@ -226,6 +226,33 @@ describe("serializeConversation", () => {
     );
   });
 
+  it("keeps colliding display names and later renames attached to stable IDs", () => {
+    const serialized = serializeConversation([
+      {
+        role: "user",
+        content: "This is Alex-one's preference.",
+        timestamp: 1,
+        __openclaw: { senderId: "alex-one", senderName: "Alex" },
+      },
+      {
+        role: "user",
+        content: "This is Alex-two's preference.",
+        timestamp: 2,
+        __openclaw: { senderId: "alex-two", senderName: "Alex" },
+      },
+      {
+        role: "user",
+        content: "Alex-one later changed their label.",
+        timestamp: 3,
+        __openclaw: { senderId: "alex-one", senderName: "Renamed Alex" },
+      },
+    ] as unknown as Message[]);
+
+    expect(serialized).toContain('sender={"id":"alex-one","name":"Alex"}');
+    expect(serialized).toContain('sender={"id":"alex-two","name":"Alex"}');
+    expect(serialized).toContain('sender={"id":"alex-one","name":"Renamed Alex"}');
+  });
+
   it("charges the persisted sender suffix that compaction serializes", () => {
     const content = "short message";
     const unattributed = { role: "user", content, timestamp: 1 } as AgentMessage;
