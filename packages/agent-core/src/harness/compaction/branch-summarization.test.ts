@@ -225,6 +225,38 @@ src/write.ts
     expect(capture.readCapture().prompt).not.toContain("PRIVATE_RUNTIME_CONTEXT");
   });
 
+  it("preserves sender provenance and attribution instructions in a branch summary prompt", async () => {
+    const model = createModel(128_000);
+    const capture = createCapturingStream(model);
+    const entries: SessionTreeEntry[] = [
+      createMessageEntry(
+        {
+          role: "user",
+          content: "Alice requires the launch on Friday.",
+          timestamp: 1,
+          __openclaw: { senderId: "alice-id", senderName: "Alice" },
+        } as AgentMessage,
+        0,
+      ),
+      createMessageEntry({ role: "user", content: "An old anonymous note.", timestamp: 2 }, 1),
+    ];
+
+    const result = await generateBranchSummary(entries, {
+      model,
+      apiKey: "test-key",
+      signal: new AbortController().signal,
+      streamFn: capture.streamFn,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(capture.readCapture().prompt).toContain(
+      '[User sender={"id":"alice-id","name":"Alice"}]: Alice requires the launch on Friday.',
+    );
+    expect(capture.readCapture().prompt).toContain("[User]: An old anonymous note.");
+    expect(capture.readCapture().prompt).toContain("Preserve attribution for material facts");
+    expect(capture.readCapture().prompt).toContain("is unattributed");
+  });
+
   it("retains failed tool results when preparing a branch", () => {
     const entries: SessionTreeEntry[] = [
       createMessageEntry({ role: "user", content: "run deployment", timestamp: 1 }, 0),

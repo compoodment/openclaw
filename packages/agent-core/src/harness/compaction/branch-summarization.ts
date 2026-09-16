@@ -19,7 +19,18 @@ import {
   ok,
   type Result,
 } from "../types.js";
-import { SUMMARIZATION_SYSTEM_PROMPT } from "./compaction.js";
+<<<<<<< HEAD
+import {
+  SUMMARIZATION_SYSTEM_PROMPT,
+  withSenderProvenanceSummarizationInstructions,
+} from "./compaction.js";
+=======
+import {
+  estimateTokens,
+  SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS,
+  SUMMARIZATION_SYSTEM_PROMPT,
+} from "./compaction.js";
+>>>>>>> b3080f22 (fix: preserve provenance instructions in branch summaries)
 import {
   computeFileLists,
   createFileOps,
@@ -178,7 +189,8 @@ Use this EXACT format:
 ## Next Steps
 1. [What should happen next to continue this work]
 
-Keep each section concise. Preserve exact file paths, function names, and error messages.`;
+Keep each section concise. Preserve exact file paths, function names, and error messages.
+${SENDER_PROVENANCE_SUMMARIZATION_INSTRUCTIONS}`;
 
 /** Generate a summary for abandoned branch entries. */
 export async function generateBranchSummary(
@@ -202,6 +214,7 @@ export async function generateBranchSummary(
   } else {
     instructions = BRANCH_SUMMARY_PROMPT;
   }
+  instructions = withSenderProvenanceSummarizationInstructions(instructions);
   const promptPrefix = "<conversation>\n";
   const promptSuffix = `\n</conversation>\n\n${instructions}`;
   const fixedInputTokens = Math.ceil(
