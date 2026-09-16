@@ -7,17 +7,11 @@ import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
 import { sliceUtf16Safe, truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
 import type { AgentCoreCompletionRuntimeDeps } from "../../runtime-deps.js";
 import type { AgentMessage, ThinkingLevel } from "../../types.js";
-import { type HarnessMessage, isRuntimeContextCarrier } from "../messages.js";
+import { isRuntimeContextCarrier } from "../messages.js";
+import type { HarnessMessage } from "../messages.js";
 import { buildSessionContext, projectSessionEntryMessage } from "../session/session.js";
 import { selectResetKeptEntries } from "../session/tool-result-pairing.js";
-import {
-  CompactionError,
-  err,
-  InvalidSummaryOutputError,
-  ok,
-  type Result,
-  type SessionTreeEntry,
-} from "../types.js";
+import { CompactionError, err, ok, type Result, type SessionTreeEntry } from "../types.js";
 import { runSummarizationCompletion } from "./summarization-completion.js";
 import {
   computeFileLists,
@@ -28,7 +22,6 @@ import {
   formatPersistedSenderSuffix,
   getCompactionContent,
   mergeSummaryFileOperations,
-  serializeConversation,
   stringifyCompactionValue,
 } from "./utils.js";
 
