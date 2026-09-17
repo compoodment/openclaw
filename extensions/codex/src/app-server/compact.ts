@@ -31,6 +31,7 @@ import {
   isCodexAppServerPrewriteRequestCancellationError,
   type CodexAppServerClient,
 } from "./client.js";
+import { acquireCodexAppServerClientForNativeCompaction } from "./compaction-client.js";
 import { persistCodexContextCompactionActivity } from "./context-compaction-activity.js";
 import { readCodexThreadContextSnapshot } from "./event-projector-usage.js";
 import {
@@ -47,11 +48,7 @@ import {
   type CodexAppServerBindingStore,
   type CodexAppServerThreadBinding,
 } from "./session-binding.js";
-import {
-  getLeasedSharedCodexAppServerClient,
-  releaseLeasedSharedCodexAppServerClient,
-  type CodexAppServerClientFactory,
-} from "./shared-client.js";
+import type { CodexAppServerClientFactory } from "./shared-client.js";
 import {
   isSameCodexAppServerThreadOwner,
   withCodexAppServerThreadMutation,
@@ -513,8 +510,6 @@ async function compactCodexNativeThread(
     // with another profile risks operating on a different Codex account.
     return { ok: false, compacted: false, reason: "auth profile mismatch for session binding" };
   }
-  const shouldReleaseDefaultLease = !options.clientFactory;
-  const clientFactory = options.clientFactory ?? getLeasedSharedCodexAppServerClient;
   const runtimeAuthPlan = params.runtimeAuthPlan ?? params.runtimePlan?.auth;
   // A user-home app-server keeps its native Codex account; injecting a prepared key
   // would rewrite the CODEX_HOME auth that Codex CLI and Desktop share.
@@ -536,15 +531,20 @@ async function compactCodexNativeThread(
       params.abortSignal,
       async () => {
         assertCurrent();
-        const client = await clientFactory({
-          startOptions: appServer.start,
-          ...(preparedApiKey
-            ? { preparedAuth: { kind: "api-key" as const, apiKey: preparedApiKey } }
-            : { authProfileId: connection.clientAuthProfileId }),
-          agentDir: params.agentDir,
-          config: params.config,
-          assertCurrent,
+        const acquiredClient = await acquireCodexAppServerClientForNativeCompaction({
+          clientId: binding.clientId,
+          clientFactory: options.clientFactory,
+          options: {
+            startOptions: appServer.start,
+            ...(preparedApiKey
+              ? { preparedAuth: { kind: "api-key" as const, apiKey: preparedApiKey } }
+              : { authProfileId: connection.clientAuthProfileId }),
+            agentDir: params.agentDir,
+            config: params.config,
+            assertCurrent,
+          },
         });
+        const client = acquiredClient.client;
         let releaseThreadSubscription: (() => Promise<void>) | undefined;
         let retainedThreadOwnership: CodexAppServerLiveThreadOwnership | undefined;
         let compactionSucceeded = false;
@@ -855,9 +855,7 @@ async function compactCodexNativeThread(
               await releaseThreadSubscription?.();
             }
           } finally {
-            if (shouldReleaseDefaultLease) {
-              releaseLeasedSharedCodexAppServerClient(client);
-            }
+            acquiredClient.release();
           }
         }
         const details: JsonObject = {
